@@ -53,9 +53,11 @@ jobs:
           echo "tag=${TAGNAME}" >> $GITHUB_OUTPUT
 
       - name: Checkout Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.resolve-tag.outputs.tag }}
+          submodules: recursive
+          persist-credentials: false
 
       - name: Build Zip Package
         id: package
@@ -70,7 +72,11 @@ jobs:
           DIRNAME="${COMPONENT#*_}"
           ZIP_FILE="${DIRNAME}.zip"
 
-          git archive --format=zip --prefix="${DIRNAME}/" -o "$ZIP_FILE" HEAD
+          export DIRNAME BUILD_DIR="${PWD}/build"
+          mkdir "$BUILD_DIR"
+          git archive --prefix="${DIRNAME}/" HEAD | tar -x -C "$BUILD_DIR"
+          git submodule foreach --quiet --recursive 'git archive --prefix="${DIRNAME}/${displaypath}/" HEAD | tar -x -C "$BUILD_DIR"'
+          (cd "$BUILD_DIR" && zip -qr "../${ZIP_FILE}" "$DIRNAME")
 
           echo "component=${COMPONENT}" >> $GITHUB_OUTPUT
           echo "zip_file=${ZIP_FILE}" >> $GITHUB_OUTPUT
