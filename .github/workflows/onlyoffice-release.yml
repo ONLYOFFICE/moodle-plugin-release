@@ -1,0 +1,73 @@
+name: Release ONLYOFFICE Plugin version to Moodle Marketplace
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Tag to be released (e.g. v6.2.0)'
+        required: true
+        type: string
+    secrets:
+      MOODLE_MARKETPLACE_TOKEN:
+        description: 'API token generated at https://marketplace.moodle.com/account/security'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+
+    env:
+      TAG: ${{ inputs.tag }}
+
+    outputs:
+      notes: ${{ steps.release_notes.outputs.notes }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          persist-credentials: false
+
+      - name: Validate Version
+        run: |
+          release=$(sed -n "s/^\$plugin->release *= *'\(.*\)';$/\1/p" version.php)
+          if [ "$release" != "$TAG" ]; then
+            echo "::error::version.php release '$release' does not match tag '$TAG'"
+            exit 1
+          fi
+
+      - name: Extract Release Notes
+        id: release_notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes=$(gh release view "$TAG" --json body -q '.body // ""' || true)
+          if [ -z "$notes" ]; then
+            # A section ends at the next version heading ("## 1.2.3" or an unreleased "##"),
+            # not at a "## Changed" subheading.
+            notes=$(awk -v heading="## ${TAG#v}" '/^##( [0-9.]+)? *$/ { found = ($0 == heading); next } found' CHANGELOG.md)
+          fi
+          if [ -z "$notes" ]; then
+            echo "::error::No release notes for '$TAG' in the GitHub release or CHANGELOG.md"
+            exit 1
+          fi
+          delimiter="notes-$(openssl rand -hex 16)"
+          {
+            echo "notes<<$delimiter"
+            printf '%s\n' "$notes"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: prepare
+    uses: ./.github/workflows/moodle-release.yml
+    with:
+      tag: ${{ inputs.tag }}
+      release_notes: ${{ needs.prepare.outputs.notes }}
+      environment: marketplace
+    secrets:
+      MOODLE_MARKETPLACE_TOKEN: ${{ secrets.MOODLE_MARKETPLACE_TOKEN }}

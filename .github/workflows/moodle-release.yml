@@ -19,6 +19,10 @@ on:
         description: 'Release notes to be submitted. If not set, they are taken from the GitHub Release belonging to the tag or, failing that, from the changelog file of the plugin.'
         required: false
         type: string
+      environment:
+        description: 'GitHub environment of the calling repository to run the release job in, e.g. to use its protection rules and secrets.'
+        required: false
+        type: string
     secrets:
       MOODLE_MARKETPLACE_TOKEN:
         description: 'API token generated at https://marketplace.moodle.com/account/security'
@@ -31,6 +35,7 @@ defaults:
 jobs:
   release-to-marketplace:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
 
     env:
       BASE_URL: 'https://marketplace.moodle.com/api'
