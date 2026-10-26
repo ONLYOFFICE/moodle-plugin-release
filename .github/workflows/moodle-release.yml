@@ -34,7 +34,6 @@ jobs:
 
     env:
       BASE_URL: 'https://marketplace.moodle.com/api'
-      TOKEN: ${{ secrets.MOODLE_MARKETPLACE_TOKEN }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
@@ -119,6 +118,7 @@ jobs:
 
       - name: Submit Version to Marketplace API
         env:
+          TOKEN: ${{ secrets.MOODLE_MARKETPLACE_TOKEN }}
           TAGNAME: ${{ steps.resolve-tag.outputs.tag }}
           COMPONENT: ${{ steps.package.outputs.component }}
           ZIP_FILE: ${{ steps.package.outputs.zip_file }}
@@ -128,9 +128,9 @@ jobs:
 
           echo "Submitting $ZIP_FILE for component $COMPONENT to $ENDPOINT..."
 
-          HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" \
+          HTTP_STATUS=$(printf 'Authorization: Bearer %s\n' "${TOKEN}" | curl -s -o response.json -w "%{http_code}" \
             -X POST \
-            -H "Authorization: Bearer ${TOKEN}" \
+            -H @- \
             -F "file=@${ZIP_FILE}" \
             --form-string "releaseNotes=${NOTES}" \
             --form-string "vcsTag=${TAGNAME}" \
